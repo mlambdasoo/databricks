@@ -1,0 +1,12 @@
+version: 2
+
+sources:
+  - name: nyc_raw
+    database: sudong    
+    schema: dbt         
+    tables:
+      - name: trips     
+        description: "Raw NYC taxi trip data in Unity Catalog."
+
+      - name: zipcodes     
+        description: "Raw zipcodes in Unity Catalog."
