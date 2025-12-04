@@ -70,7 +70,7 @@ class Installer:
 
 
 class NodeJSLTS:
-    V18_LTS = "v18.20.3"
+    V18_LTS = "v24.11.0"
 
 
 class OperatingSystem:

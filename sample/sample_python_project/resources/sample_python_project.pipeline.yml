@@ -1,0 +1,14 @@
+# The main pipeline for sample_python_project
+resources:
+  pipelines:
+    sample_python_project_pipeline:
+      name: sample_python_project_pipeline
+      catalog: ns_demo_db
+      schema: sample_python_project_${bundle.target}
+      serverless: true
+      libraries:
+        - notebook:
+            path: ../src/pipeline.ipynb
+
+      configuration:
+        bundle.sourcePath: ${workspace.file_path}/src
