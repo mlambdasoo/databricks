@@ -1,0 +1,24 @@
+name: Databricks CI
+
+on:
+  pull_request: # PR 이벤트 발생 시 트리거
+    branches: [ main ]
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4 # 1. 코드 체크아웃
+    
+    # 2. 환경 설정 (Python, 필요한 라이브러리 설치)
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+
+    # 3. 유닛 테스트 실행
+    - name: Run Unit Tests
+      run: pytest ./tests
