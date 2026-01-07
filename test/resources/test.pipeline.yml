@@ -1,0 +1,14 @@
+# The main pipeline for test
+resources:
+  pipelines:
+    test_pipeline:
+      name: test_pipeline
+      catalog: ns_demo_db
+      schema: test_${bundle.target}
+      serverless: true
+      libraries:
+        - notebook:
+            path: ../src/pipeline.ipynb
+
+      configuration:
+        bundle.sourcePath: ${workspace.file_path}/src
