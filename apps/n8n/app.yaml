@@ -1,0 +1,5 @@
+env: 
+  - name: N8N_PORT
+    value: 8000
+  - name: N8N_HOST 
+    value: 0.0.0.0

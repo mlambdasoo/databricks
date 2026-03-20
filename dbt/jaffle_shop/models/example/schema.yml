@@ -1,0 +1,65 @@
+
+version: 2
+
+models:
+  - name: cost
+    config:
+      grants:
+        select: ['data-engineers']
+        
+  - name: my_first_dbt_model
+    description: "A starter dbt model"
+    columns:
+      - name: id
+        description: "The primary key for this table"
+        data_tests:
+          - unique
+          - not_null
+
+  - name: my_second_dbt_model
+    description: "A starter dbt model"
+    columns:
+      - name: id
+        description: "The primary key for this table"
+        data_tests:
+          - unique
+          - not_null
+            
+  - name: stg_nyc_trips  # 모델의 파일명과 일치해야 합니다.
+    description: "뉴욕 택시 트립 데이터의 스테이징 모델"
+    columns:
+        # 1. Primary Key 테스트
+        - name: trip_key
+          description: "Surrogate Key for the trip record."
+          tests:
+            # dbt-expectations: 이 컬럼이 고유(unique)하고 비어있지 않음(not null)을 예상
+            # 이는 surrogate key의 필수 조건입니다.
+            - dbt_expectations.expect_column_to_be_primary_key
+            
+        # 2. Trip Distance 테스트
+        - name: trip_distance
+          description: "이동 거리 (마일)."
+          tests:
+            # dbt-expectations: trip_distance가 0.1 마일 이상임을 예상
+            # 쿼리에서 'trip_distance > 0'으로 필터링했지만, 오류 데이터가 유입되거나
+            # 데이터 소스 변경 시를 대비한 안전 장치입니다.
+            - dbt_expectations.expect_column_values_to_be_greater_than:
+                value: 0.05 
+                
+        # 3. Pickup Hour 테스트
+        - name: pickup_hour_of_day
+          description: "픽업 시간 (0-23)."
+          tests:
+            # dbt-expectations: 이 컬럼의 값이 특정 범위(0에서 23) 내에 있음을 예상
+            - dbt_expectations.expect_column_values_to_be_between:
+                min_value: 0
+                max_value: 23
+                
+        # 4. Fare Amount 테스트
+        - name: fare_amount
+          description: "운임 금액."
+          tests:
+            # dbt-expectations: 운임이 $2.50보다 크거나 같음을 예상 (최소 운임)
+            # 이는 데이터 품질을 확인하는 비즈니스 규칙 테스트입니다.
+            - dbt_expectations.expect_column_values_to_be_greater_than_or_equal_to:
+                value: 2.50
