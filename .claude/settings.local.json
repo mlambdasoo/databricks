@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__databricks__create_or_update_dashboard",
+      "mcp__databricks__get_table_details",
+      "mcp__databricks__manage_uc_grants"
+    ]
+  }
+}

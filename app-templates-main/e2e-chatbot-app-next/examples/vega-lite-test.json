@@ -1,0 +1,31 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "title": "Sample Bar Chart - Sales by Region",
+  "description": "Test visualization to verify Vega-Lite rendering works correctly",
+  "mark": "bar",
+  "data": {
+    "values": [
+      {"region": "North", "sales": 45000},
+      {"region": "South", "sales": 32000},
+      {"region": "East", "sales": 51000},
+      {"region": "West", "sales": 38000}
+    ]
+  },
+  "encoding": {
+    "x": {
+      "field": "region",
+      "type": "nominal",
+      "axis": {"title": "Region"}
+    },
+    "y": {
+      "field": "sales",
+      "type": "quantitative",
+      "axis": {"title": "Sales ($)"}
+    },
+    "color": {
+      "field": "region",
+      "type": "nominal",
+      "legend": null
+    }
+  }
+}

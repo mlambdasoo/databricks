@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "resources": [
+    {
+      "type": "dashboard",
+      "name": "NYC Taxi Sample Dashboard",
+      "id": "01f1184ad03313aa84beb68e0545f22e",
+      "created_at": "2026-03-05T04:21:43.191559+00:00",
+      "updated_at": "2026-03-05T04:21:43.191559+00:00",
+      "url": "https://adb-984752964297111.11.azuredatabricks.net/sql/dashboardsv3/01f1184ad03313aa84beb68e0545f22e"
+    },
+    {
+      "type": "catalog",
+      "name": "tko",
+      "id": "tko",
+      "created_at": "2026-03-05T04:58:41.344590+00:00",
+      "updated_at": "2026-03-05T04:58:41.344590+00:00"
+    },
+    {
+      "type": "schema",
+      "name": "tko.anomaly_detection",
+      "id": "tko.anomaly_detection",
+      "created_at": "2026-03-05T04:58:51.821309+00:00",
+      "updated_at": "2026-03-05T04:58:51.821309+00:00"
+    }
+  ]
+}

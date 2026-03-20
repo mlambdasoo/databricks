@@ -1,0 +1,15 @@
+# Terraform secrets and state
+*.tfvars
+*.tfstate
+*.tfstate.backup
+.terraform/
+
+# Scripts with credentials
+scripts/get_fevm_workspace_id.py
+scripts/zerobus_ingest.py
+
+# Build artifacts with secrets
+fraud-detection-rtm/frontend/dist/
+
+# OS files
+.DS_Store
