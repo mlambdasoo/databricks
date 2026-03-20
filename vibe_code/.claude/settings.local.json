@@ -1,6 +1,0 @@
-{
-  "enabledMcpjsonServers": [
-    "databricks"
-  ],
-  "enableAllProjectMcpServers": true
-}

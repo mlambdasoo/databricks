@@ -1,1 +1,0 @@
-{"root":["./src/app.tsx","./src/main.tsx","./src/store.ts","./src/components/alertfeed.tsx","./src/components/rulebuilder.tsx","./src/components/rulelist.tsx","./src/components/seedinjector.tsx","./src/components/statsbar.tsx","./src/components/throughputchart.tsx"],"version":"5.9.3"}
