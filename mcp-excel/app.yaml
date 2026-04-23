@@ -1,0 +1,16 @@
+command:
+  - "python"
+  - "app.py"
+
+env:
+  - name: "EXCEL_CACHE_DIR"
+    value: "/tmp/excel_cache"
+  - name: "LOG_LEVEL"
+    value: "INFO"
+
+# 사용자 권한 모드 (On-Behalf-Of)
+# 이 scope 가 선언돼야 Databricks Apps 가 X-Forwarded-Access-Token 헤더를
+# 주입하며, 앱은 해당 토큰으로 end user 의 UC 권한에 따라 Files API 를 호출한다.
+# (앱 SP 에 미리 Volume 권한을 부여할 필요 없음)
+user_api_scopes:
+  - all-apis
