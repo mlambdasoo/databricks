@@ -11,14 +11,14 @@ Databricks 적재(Delta 테이블 생성 등) 전에 Excel 의 시트·헤더·�
 
 ## 제공 Tools
 
-| Tool | 용도 |
-|---|---|
-| `list_sheet_names` | 시트 이름 목록 |
-| `get_workbook_metadata` | Workbook 메타데이터 (시트 목록, used range, 파일 크기) |
-| `get_merged_cells` | 시트의 병합 셀 범위 목록 |
-| `read_data_from_excel` | 범위 데이터 읽기 (preview 모드 지원) |
-| `get_data_validation_info` | 드롭다운 등 데이터 검증 규칙 |
-| `detect_headers_and_types` | 헤더·컬럼 타입 자동 추정 (Delta DDL 설계용) |
+LLM 이 자연스럽게 단계별로 호출하도록 4단계 워크플로로 설계.
+
+| Step | Tool | 용도 |
+|---|---|---|
+| 1 | `get_workbook_metadata` | Workbook 전체 개괄 (모든 시트의 이름·used_range·병합셀·차트/피벗 존재·파일 메타) |
+| 2 | `profile_sheet` | 한 시트 심층 분석 (layout 자동탐지·다단 헤더 flatten·컬럼별 inferred_type/spark_type/통계·전처리 suggestion) |
+| 3 | `read_data_from_excel` | 지정 범위 셀 값 sampling (preview 모드 지원) |
+| 4 | `suggest_delta_schema` | profile_sheet 결과 기반 `CREATE TABLE` DDL + 전처리 단계 자동 생성 |
 
 모든 tool 은 `filepath` 인자로 **UC Volume 절대 경로** (`/Volumes/<catalog>/<schema>/<volume>/<file>.xlsx`) 만 허용합니다.
 
@@ -134,8 +134,9 @@ databricks fs cp ./my-excel.xlsx \
 
 | 파일 | 역할 |
 |---|---|
-| `app.py` | FastMCP wrapper — OBO 인증 + UC Volume lazy download + 6개 tool |
-| `app.yaml` | Databricks Apps 설정 (`user_api_scopes: [all-apis]` 로 OBO 활성화) |
+| `app.py` | FastMCP wrapper — OBO 인증 + UC Volume lazy download + 4개 tool |
+| `app.yaml` | Databricks Apps 컨테이너 설정 (실행 명령, 환경변수) |
+| `app-update.json` | 앱 메타 설정 (`user_api_scopes`, `resources`) — `databricks apps update --json @app-update.json` 로 등록 |
 | `requirements.txt` | Python 의존성 (`fastmcp`, `openpyxl`, `databricks-sdk`, `excel-mcp-server`) |
 | `README.md` | 이 문서 |
 | `.gitignore` | Python/Databricks 로컬 아티팩트 제외 |
@@ -154,13 +155,22 @@ databricks fs cp ./my-excel.xlsx \
 
 ### user_api_scopes 조정
 
-`app.yaml` 에 선언된 `all-apis` 가 과하거나 다른 scope 가 필요하면 수정:
-```yaml
-user_api_scopes:
-  - files               # Files API 만
-  - catalog.catalogs    # UC 메타스토어 조회 (선택)
+`user_api_scopes` 는 **앱 메타 설정**이라 `app.yaml` 에 적어도 declared 로 적용되지 않는다.
+`app-update.json` 을 수정한 뒤 다음 명령으로 등록:
+
+```bash
+databricks apps update mcp-<your-prefix>-excel \
+  --json @app-update.json \
+  --profile <profile-name>
 ```
-수정 후 다시 `databricks apps deploy` 실행.
+
+현재 등록된 scopes:
+- `files.files` — UC Volume 파일 read/write (`/api/2.0/fs/files/...`)
+- `catalog.catalogs:read` — `/Volumes/<catalog>/...` 경로의 catalog lookup 통과 (필수)
+
+> **주의** — 단순히 `files.files` 만 선언하면 UC Volume 접근 시 `403 Forbidden / Invalid scope, required scopes: files` 가 아닌 catalog 차원에서 막힌다. 두 scope 모두 declare 해야 한다.
+
+scope 변경 시 사용자가 앱 URL 에 한 번 접속해 OAuth consent 를 갱신해야 한다.
 
 ## 아키텍처
 
@@ -173,7 +183,7 @@ user_api_scopes:
   ├─ CORSMiddleware (CORS preflight 처리)
   ├─ UserTokenMiddleware (X-Forwarded-Access-Token 추출 → ContextVar)
   ├─ FastMCP streamable-http (stateless)
-  └─ 6 tools
+  └─ 4 tools (Step 1~4 워크플로)
        │
        │ get_user_ws() → WorkspaceClient(token=<user OAuth>)
        ▼

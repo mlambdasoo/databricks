@@ -101,15 +101,18 @@ class UserTokenMiddleware(BaseHTTPMiddleware):
 def get_user_ws() -> WorkspaceClient:
     """현재 요청의 사용자 토큰으로 인증된 WorkspaceClient 를 반환한다.
 
-    사용자 토큰이 없으면 Databricks Apps 의 SP 자격증명(default) 로 fallback.
-    (로컬 테스트나 user_api_scopes 미선언 환경에서도 최소 동작 보장.)
+    user_api_scopes 가 선언된 앱이므로 X-Forwarded-Access-Token 이 반드시 주입된다.
+    auth_type="pat" 명시: 컨테이너에 자동 주입되는 SP credential 환경변수
+    (DATABRICKS_CLIENT_ID/SECRET) 를 SDK 가 함께 인식해 충돌하는 것을 방지.
     """
     token = _user_token_ctx.get()
     host = os.environ.get("DATABRICKS_HOST")
-    if token and host:
-        return WorkspaceClient(host=host, token=token)
-    # Fallback: 환경변수 기반 자동 인증 (로컬 CLI profile 또는 SP)
-    return WorkspaceClient()
+    if not (token and host):
+        raise RuntimeError(
+            "user OAuth token is required. "
+            "X-Forwarded-Access-Token header missing — check user_api_scopes in app.yaml."
+        )
+    return WorkspaceClient(host=host, token=token, auth_type="pat")
 
 
 # ---------------------------------------------------------------------------

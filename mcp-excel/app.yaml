@@ -8,9 +8,11 @@ env:
   - name: "LOG_LEVEL"
     value: "INFO"
 
-# 사용자 권한 모드 (On-Behalf-Of)
-# 이 scope 가 선언돼야 Databricks Apps 가 X-Forwarded-Access-Token 헤더를
-# 주입하며, 앱은 해당 토큰으로 end user 의 UC 권한에 따라 Files API 를 호출한다.
-# (앱 SP 에 미리 Volume 권한을 부여할 필요 없음)
-user_api_scopes:
-  - all-apis
+# NOTE: user_api_scopes 는 app.yaml 로 적용되지 않는다.
+#       Databricks Apps 의 메타 설정이며 `databricks apps update --json @app-update.json`
+#       으로 등록해야 effective 가 된다 (app-update.json 참조).
+#
+# 현재 declared scopes (app-update.json 에서 관리):
+#   - files.files            : /api/2.0/fs/files/... (UC Volume 파일 read/write API)
+#   - catalog.catalogs:read  : /Volumes/<catalog>/... 경로의 catalog lookup 통과용
+#                              (files.files 만으로는 UC Volume 접근 시 403 발생)
