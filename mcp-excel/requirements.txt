@@ -1,5 +1,4 @@
 fastmcp>=2.0
 openpyxl>=3.1
 databricks-sdk>=0.30
-# excel-mcp-server 는 openpyxl 기반 내부 비즈니스 로직만 재사용 (FastMCP 래핑은 우리 앱에서 직접 수행)
 excel-mcp-server==0.1.8
