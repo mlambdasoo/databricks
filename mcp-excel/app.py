@@ -11,7 +11,11 @@ Tools:
   - get_merged_cells            시트의 병합 셀 목록
   - read_data_from_excel        범위 데이터 읽기 (preview 모드 지원)
   - get_data_validation_info    데이터 검증 규칙
+  - validate_formula_syntax     Excel 수식 문법 검증 (적용 X)
+  - validate_excel_range        지정한 범위가 시트 내 유효한지 검증
   - detect_headers_and_types    헤더/타입 자동 추정 (openpyxl 직접 구현)
+  - profile_sheet               시트 심층 프로파일링
+  - suggest_delta_schema        Delta CREATE TABLE 제안
 
 입력 filepath 는 반드시 UC Volume 절대경로 (/Volumes/...) 이어야 한다.
 """
@@ -31,9 +35,14 @@ from typing import Any
 from fastmcp import FastMCP
 
 # excel-mcp-server 내부 모듈 재사용 (openpyxl 기반, FastMCP tool 래핑과 독립적).
-# 자체 풍부 구현이 늘어나며 get_workbook_info, get_merged_ranges 에 대한 의존도는 없앴다.
-# 남은 재사용: read_excel_range (범위 셀 값 추출).
+# 원본 read tool 6개 (haris-musa server.py)를 1:1 로 노출하기 위한 import 묶음.
 from excel_mcp.data import read_excel_range
+from excel_mcp.sheet import get_merged_ranges as _get_merged_ranges_impl
+from excel_mcp.cell_validation import get_all_validation_ranges as _get_all_validation_ranges_impl
+from excel_mcp.validation import (
+    validate_formula_in_cell_operation as _validate_formula_impl,
+    validate_range_in_sheet_operation as _validate_range_impl,
+)
 
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
@@ -356,6 +365,141 @@ def read_data_from_excel(
     }
 
 
+@mcp.tool()
+def get_merged_cells(filepath: str, sheet_name: str) -> dict[str, Any]:
+    """지정한 시트의 병합 셀 범위 목록을 반환한다.
+
+    haris-musa/excel-mcp-server 의 get_merged_cells 와 동일한 기능을 UC Volume 경로
+    인터페이스로 노출한다. get_workbook_metadata 는 모든 시트의 병합셀을 한 번에
+    돌려주지만, 이 tool 은 단일 시트 focused query 용도로 더 가볍다.
+
+    Args:
+        filepath: UC Volume 절대 경로 (/Volumes/...).
+        sheet_name: 시트 이름.
+    """
+    local = resolve(filepath)
+    ranges = _get_merged_ranges_impl(local, sheet_name)
+    return {
+        "filepath": filepath,
+        "sheet": sheet_name,
+        "merged_ranges": [str(r) for r in ranges],
+        "merged_cell_count": len(ranges),
+    }
+
+
+@mcp.tool()
+def get_data_validation_info(filepath: str, sheet_name: str) -> dict[str, Any]:
+    """지정한 시트의 데이터 검증(Data Validation) 규칙을 모두 반환한다.
+
+    haris-musa/excel-mcp-server 의 get_data_validation_info 와 동일한 기능.
+    어떤 셀 범위에 어떤 종류(list/whole/decimal/date/textLength/custom)의 검증이
+    걸려 있는지 LLM 이 한 번에 파악할 수 있도록 구조화된 결과를 돌려준다.
+
+    Args:
+        filepath: UC Volume 절대 경로 (/Volumes/...).
+        sheet_name: 시트 이름.
+    """
+    local = resolve(filepath)
+    wb = load_workbook(local, read_only=False, data_only=False)
+    try:
+        if sheet_name not in wb.sheetnames:
+            return {
+                "filepath": filepath,
+                "sheet": sheet_name,
+                "error": f"Sheet '{sheet_name}' not found",
+                "validations": [],
+                "validation_count": 0,
+            }
+        ws = wb[sheet_name]
+        validations = _get_all_validation_ranges_impl(ws) or []
+        return {
+            "filepath": filepath,
+            "sheet": sheet_name,
+            "validations": validations,
+            "validation_count": len(validations),
+        }
+    finally:
+        wb.close()
+
+
+@mcp.tool()
+def validate_formula_syntax(
+    filepath: str,
+    sheet_name: str,
+    cell: str,
+    formula: str,
+) -> dict[str, Any]:
+    """Excel 수식 문법을 검증한다 (실제 시트에 적용하지 않음).
+
+    haris-musa/excel-mcp-server 의 validate_formula_syntax 와 동일한 read-only 검증.
+    수식이 문법적으로 올바른지, 셀 참조가 유효한지 등을 확인한다.
+
+    Args:
+        filepath: UC Volume 절대 경로 (/Volumes/...).
+        sheet_name: 시트 이름.
+        cell: 수식이 들어갈 셀 (예: "B2").
+        formula: 검증할 수식 (예: "=SUM(A1:A10)").
+    """
+    local = resolve(filepath)
+    try:
+        result = _validate_formula_impl(local, sheet_name, cell, formula)
+        return {
+            "filepath": filepath,
+            "sheet": sheet_name,
+            "cell": cell,
+            "formula": formula,
+            "valid": True,
+            "message": result.get("message", "OK"),
+        }
+    except Exception as e:
+        return {
+            "filepath": filepath,
+            "sheet": sheet_name,
+            "cell": cell,
+            "formula": formula,
+            "valid": False,
+            "message": f"Error: {e}",
+        }
+
+
+@mcp.tool()
+def validate_excel_range(
+    filepath: str,
+    sheet_name: str,
+    start_cell: str,
+    end_cell: str | None = None,
+) -> dict[str, Any]:
+    """지정한 범위가 시트 안에 존재하고 형식이 올바른지 검증한다.
+
+    haris-musa/excel-mcp-server 의 validate_excel_range 와 동일한 read-only 검증.
+
+    Args:
+        filepath: UC Volume 절대 경로 (/Volumes/...).
+        sheet_name: 시트 이름.
+        start_cell: 시작 셀.
+        end_cell: 종료 셀 (생략 시 단일 셀로 검증).
+    """
+    local = resolve(filepath)
+    range_str = start_cell if not end_cell else f"{start_cell}:{end_cell}"
+    try:
+        result = _validate_range_impl(local, sheet_name, range_str)
+        return {
+            "filepath": filepath,
+            "sheet": sheet_name,
+            "range": range_str,
+            "valid": True,
+            "message": result.get("message", "OK"),
+        }
+    except Exception as e:
+        return {
+            "filepath": filepath,
+            "sheet": sheet_name,
+            "range": range_str,
+            "valid": False,
+            "message": f"Error: {e}",
+        }
+
+
 # ---------------------------------------------------------------------------
 # profile_sheet 를 위한 내부 유틸
 # ---------------------------------------------------------------------------
@@ -389,14 +533,32 @@ def _sanitize_column_name(name: Any) -> str:
 
 
 def _row_fill_counts(ws) -> list[int]:
-    """각 row 의 non-null 셀 수."""
+    """각 row 의 non-null 셀 수.
+
+    openpyxl 기본 동작상 병합 셀의 anchor(좌상단) 외 칸은 .value 가 None 으로 보이므로,
+    원본 그대로 카운트하면 병합 영역이 sparse 로 잘못 분류된다. 이 함수는 병합 anchor
+    값을 영역 전체에 풀어서 점유로 인정한다 — _detect_data_region 의 헤더/데이터 경계
+    탐지가 한국형 Excel(상단 병합 제목, 다단 헤더, 부분 병합 합계 등)에서도 견고해진다.
+    """
     max_row = ws.max_row or 0
     max_col = ws.max_column or 0
+
+    merged_anchor: dict[tuple[int, int], Any] = {}
+    for mr in ws.merged_cells.ranges:
+        anchor_val = ws.cell(row=mr.min_row, column=mr.min_col).value
+        if anchor_val in (None, ""):
+            continue
+        for r in range(mr.min_row, mr.max_row + 1):
+            for c in range(mr.min_col, mr.max_col + 1):
+                merged_anchor[(r, c)] = anchor_val
+
     counts = []
     for r in range(1, max_row + 1):
         count = 0
         for c in range(1, max_col + 1):
             val = ws.cell(row=r, column=c).value
+            if val in (None, "") and (r, c) in merged_anchor:
+                val = merged_anchor[(r, c)]
             if val not in (None, ""):
                 count += 1
         counts.append(count)
