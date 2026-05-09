@@ -22,6 +22,7 @@ Tools:
 
 from __future__ import annotations
 
+import asyncio
 import contextvars
 import hashlib
 import logging
@@ -1120,6 +1121,83 @@ CORS_MIDDLEWARE = Middleware(
 
 
 # ---------------------------------------------------------------------------
+# Keep-alive ASGI middleware
+# ---------------------------------------------------------------------------
+# Databricks Apps reverse proxy 가 long-lived SSE connection 을 ~5 분 idle 후
+# 종료해 클라이언트가 새로 고침해야만 다시 동작하는 증상을 회피한다.
+# text/event-stream 응답에 한해 KEEPALIVE_INTERVAL_SECONDS 마다 SSE comment
+# (`: keepalive\n\n`) 를 본문에 주입한다. 클라이언트는 comment line 을 무시하므로
+# MCP 프로토콜에는 영향을 주지 않으며, 연결은 idle 로 판단되지 않는다.
+class KeepAliveASGIMiddleware:
+    KEEPALIVE_INTERVAL_SECONDS = 240  # 4 분 (Apps 5 분 idle timeout 보다 짧게)
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+
+        is_sse = False
+        send_lock = asyncio.Lock()
+        done = asyncio.Event()
+        keepalive_task: asyncio.Task | None = None
+        interval = self.KEEPALIVE_INTERVAL_SECONDS
+
+        async def keepalive_loop():
+            while not done.is_set():
+                try:
+                    await asyncio.wait_for(done.wait(), timeout=interval)
+                except asyncio.TimeoutError:
+                    if not is_sse or done.is_set():
+                        continue
+                    async with send_lock:
+                        try:
+                            await send({
+                                "type": "http.response.body",
+                                "body": b": keepalive\n\n",
+                                "more_body": True,
+                            })
+                        except Exception:
+                            done.set()
+                            return
+
+        async def wrapped_send(message):
+            nonlocal is_sse, keepalive_task
+            mtype = message.get("type")
+            if mtype == "http.response.start":
+                for name, value in message.get("headers", []) or []:
+                    if name.lower() == b"content-type" and b"text/event-stream" in value.lower():
+                        is_sse = True
+                        break
+                async with send_lock:
+                    await send(message)
+                if is_sse and keepalive_task is None:
+                    keepalive_task = asyncio.create_task(keepalive_loop())
+                return
+            if mtype == "http.response.body":
+                async with send_lock:
+                    await send(message)
+                if not message.get("more_body", False):
+                    done.set()
+                return
+            async with send_lock:
+                await send(message)
+
+        try:
+            await self.app(scope, receive, wrapped_send)
+        finally:
+            done.set()
+            if keepalive_task is not None:
+                keepalive_task.cancel()
+                try:
+                    await keepalive_task
+                except (asyncio.CancelledError, Exception):
+                    pass
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 def main() -> None:
@@ -1134,8 +1212,12 @@ def main() -> None:
         port=port,
         path="/mcp",
         stateless_http=True,
-        # CORS 는 가장 바깥, 그 안쪽에서 사용자 토큰 추출
-        middleware=[CORS_MIDDLEWARE, Middleware(UserTokenMiddleware)],
+        # CORS 가장 바깥 → UserToken → KeepAlive 안쪽 (SSE 응답 본문에 주기적 ping 주입)
+        middleware=[
+            CORS_MIDDLEWARE,
+            Middleware(UserTokenMiddleware),
+            Middleware(KeepAliveASGIMiddleware),
+        ],
     )
 
 
