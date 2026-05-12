@@ -238,24 +238,8 @@ _VOLUME_NOTE = (
 )
 
 
-@mcp.tool()
-def get_workbook_metadata(filepath: str) -> dict[str, Any]:
-    """[Step 1 — 초기 탐색] Workbook 전체의 구조를 빠르게 개괄한다.
-
-    Excel 파일을 처음 볼 때 반드시 먼저 호출. 모든 시트의 이름·used_range·
-    병합 셀 범위·숨김 여부·차트/피벗/테이블 존재 여부와 파일 레벨 메타데이터
-    (크기, 작성자, 수정일시, 보호 여부, named ranges) 를 한 번에 반환.
-
-    다음 단계: 변환 대상 시트가 확정되면 profile_sheet 로 심층 분석.
-
-    Args:
-        filepath: UC Volume 절대 경로 (/Volumes/<catalog>/<schema>/<volume>/<file>.xlsx).
-            로컬 경로나 workspace 경로는 지원하지 않음.
-
-    Note:
-        이 tool 은 모든 시트를 스캔하므로 엄청 큰 workbook 은 잠시 소요될 수 있다.
-        특정 시트의 데이터 행별 통계는 profile_sheet 에서 다룬다.
-    """
+def _get_workbook_metadata_impl(filepath: str) -> dict[str, Any]:
+    """Workbook 메타 정보 추출 (내부 헬퍼). inspect_workbook 에서 사용."""
     local = resolve(filepath)
 
     def _iso(dt):
@@ -935,34 +919,46 @@ def _profile_sheet_impl(
 
 
 @mcp.tool()
-def profile_sheet(
+def inspect_workbook(
     filepath: str,
-    sheet_name: str,
+    sheet_names: list[str] | None = None,
     max_sample_rows: int = 200,
 ) -> dict[str, Any]:
-    """[Step 2 — 심층 분석] 특정 시트를 Delta 테이블 변환 관점에서 종합 프로파일링.
+    """[초기 탐색 + 심층 분석 통합] Workbook 메타와 시트별 심층 프로파일을 한 번에 반환.
 
-    get_workbook_metadata 로 전체 구조 파악 후, 변환 대상 시트가 확정되면
-    이 tool 로 심층 분석한다. 결과만으로 Delta 로 적재하기 위한 전처리 계획을
-    수립할 수 있도록 설계.
+    Excel 파일을 처음 볼 때 호출. 워크북 전체 구조 (시트 목록, 메타, 보호 여부 등)와
+    각 시트의 데이터 영역/헤더/컬럼 프로파일을 함께 받아 후속 전처리 계획 수립에 사용.
 
     반환 구조:
-      - layout: 데이터 영역 자동 탐지 (제목 rows, header rows, data_start/end, 소계 rows)
-      - headers: 다단 헤더 flatten 결과 (original + sanitized)
-      - columns: 각 컬럼별 inferred_type / spark_type / null / unique / min / max / samples / warnings
-      - excel_features: 병합셀·수식 존재·숨김·고정창·데이터 검증·차트/피벗
-      - suggestions: 전처리 권장사항 자연어 리스트
+      - workbook: 파일 메타 (작성자, 크기, 시트 요약 등 — 기존 get_workbook_metadata 결과)
+      - sheets: { sheet_name: 심층 프로파일 결과 (layout/headers/columns/excel_features/suggestions) }
 
     Args:
-        filepath: UC Volume 절대 경로 (/Volumes/...).
-        sheet_name: 분석할 시트 이름.
+        filepath: UC Volume 절대 경로 (/Volumes/<catalog>/<schema>/<volume>/<file>.xlsx).
+        sheet_names: 심층 프로파일링할 시트 이름 리스트. None 이면 모든 시트.
         max_sample_rows: 컬럼 통계에 사용할 최대 데이터 행 수 (기본 200).
 
     Note:
-        다음 단계: 필요 시 read_data_from_excel 로 실제 값 샘플링,
-        이후 suggest_delta_schema 로 최종 DDL 생성.
+        - 큰 워크북에서 모든 시트를 한 번에 프로파일링하면 시간이 걸릴 수 있다.
+          관심 시트만 지정하려면 sheet_names 인자 사용.
+        - 후속 단계: read_data_from_excel 로 실제 값 샘플링,
+          필요 시 suggest_delta_schema 로 DDL 생성.
     """
-    return _profile_sheet_impl(filepath, sheet_name, max_sample_rows)
+    workbook_meta = _get_workbook_metadata_impl(filepath)
+
+    target_sheets = sheet_names if sheet_names else [s["name"] for s in workbook_meta.get("sheets", [])]
+
+    sheets_profile: dict[str, Any] = {}
+    for name in target_sheets:
+        try:
+            sheets_profile[name] = _profile_sheet_impl(filepath, name, max_sample_rows)
+        except Exception as e:
+            sheets_profile[name] = {"error": str(e)}
+
+    return {
+        "workbook": workbook_meta,
+        "sheets": sheets_profile,
+    }
 
 
 @mcp.tool()
