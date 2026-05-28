@@ -11,14 +11,24 @@ Delta 테이블 적재 전에 Excel 의 시트·헤더·타입·병합셀을 자
 
 ## 제공 Tools
 
-LLM 이 단계별로 호출하도록 4단계 워크플로로 설계.
+LLM 이 단계별로 호출하도록 설계한 **메인 워크플로 3단계** + Excel 구조 정밀 점검용 **보조 read-only tool**.
+
+### 메인 워크플로
 
 | Step | Tool | 용도 |
 |---|---|---|
-| 1 | `get_workbook_metadata` | Workbook 개괄 (시트별 used_range·병합셀·차트/피벗·파일 메타) |
-| 2 | `profile_sheet` | 시트 심층 분석 (layout 자동탐지·다단 헤더 flatten·컬럼별 inferred_type/spark_type/통계·전처리 suggestion) |
-| 3 | `read_data_from_excel` | 지정 범위 셀 값 sampling (preview 모드) |
-| 4 | `suggest_delta_schema` | profile_sheet 결과 기반 `CREATE TABLE` DDL + 전처리 단계 |
+| 1 | `inspect_workbook` | Workbook 메타 + 시트별 심층 프로파일 통합 (layout 자동탐지·다단 헤더 flatten·컬럼별 inferred_type/spark_type/통계·전처리 suggestion) |
+| 2 | `read_data_from_excel` | 지정 범위 셀 값 sampling (preview 모드) |
+| 3 | `suggest_delta_schema` | `inspect_workbook` 결과 기반 `CREATE TABLE` DDL + 전처리 단계 |
+
+### 보조 Tools (haris-musa/excel-mcp-server 호환)
+
+| Tool | 용도 |
+|---|---|
+| `get_merged_cells` | 단일 시트의 병합 셀 범위 목록 |
+| `get_data_validation_info` | 시트의 데이터 검증(Data Validation) 규칙 (list/whole/decimal/date/textLength/custom) |
+| `validate_excel_range` | 범위가 시트 안에 존재하고 형식이 올바른지 검증 (read-only) |
+| `validate_formula_syntax` | Excel 수식 문법 검증 (실제 시트에 적용하지 않음) |
 
 모든 tool 의 `filepath` 는 **UC Volume 절대 경로** (`/Volumes/<catalog>/<schema>/<volume>/<file>.xlsx`) 만 허용.
 
@@ -105,7 +115,7 @@ claude mcp add --scope user --transport http mcp-excel \
   ├─ CORSMiddleware (preflight)
   ├─ UserTokenMiddleware (X-Forwarded-Access-Token → ContextVar)
   ├─ FastMCP streamable-http (stateless)
-  └─ 4 tools (Step 1~4)
+  └─ 3 main tools (inspect / read / suggest_ddl) + 4 read-only helpers
        │ WorkspaceClient(token=<user OAuth>)
        ▼
 [Databricks Files API]  →  [UC Volume: /Volumes/.../*.xlsx]
