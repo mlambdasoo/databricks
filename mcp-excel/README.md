@@ -100,7 +100,7 @@ claude mcp add --scope user --transport http mcp-excel \
 
 | 파일 | 역할 |
 |---|---|
-| `app.py` | FastMCP wrapper — OBO 인증 + UC Volume lazy download + 4개 tool |
+| `app.py` | FastMCP wrapper — OBO 인증 + UC Volume lazy download + 7개 tool (메인 3 + 보조 4) |
 | `app.yaml` | 컨테이너 실행 명령 + 환경변수 |
 | `app-update.json` | 앱 메타 (`user_api_scopes`, `resources`) |
 | `requirements.txt` | `fastmcp`, `openpyxl`, `databricks-sdk`, `excel-mcp-server` |
