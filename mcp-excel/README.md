@@ -38,8 +38,6 @@ databricks apps deploy mcp-excel \
 databricks apps get mcp-excel --profile <profile> --output json | jq -r .url
 ```
 
-Scope 변경 시 3번 재실행 + 사용자가 앱 URL 한 번 접속해 OAuth consent 갱신.
-
 ## 권한 (user_api_scopes)
 
 - `files.files` — UC Volume read
