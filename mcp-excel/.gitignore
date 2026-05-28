@@ -23,8 +23,3 @@ env/
 build/
 dist/
 *.egg-info/
-
-# 개인 값이 들어간 config.sh 는 커밋 가능하지만,
-# 민감한 값을 넣은 파생 버전은 제외
-config.sh.local
-config.*.local.sh

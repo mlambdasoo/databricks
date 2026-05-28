@@ -1,5 +1,5 @@
 {
-  "name": "mcp-sudong-excel",
+  "name": "mcp-excel",
   "description": "Excel MCP Server (FastMCP streamable-http wrapper) — UC Volume lazy download for structure inspection before Databricks ingestion. AI Playground/Agent Bricks compatible.",
   "user_api_scopes": [
     "files.files",

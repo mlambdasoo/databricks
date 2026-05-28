@@ -24,23 +24,30 @@ LLM 이 단계별로 호출하도록 4단계 워크플로로 설계.
 
 ## 배포
 
+> 앱 이름은 반드시 `mcp-` prefix 로 시작해야 Genie Code / Custom MCP 가 자동 인식.
+
 ```bash
 # 1) 소스 업로드
 databricks sync . /Workspace/Users/<your-email>/mcp-excel --profile <profile>
 
-# 2) 앱 생성 (최초 1회) — 이름은 반드시 mcp- prefix (Genie Code/Custom MCP 자동 인식)
-databricks apps create mcp-<prefix>-excel \
+# 2) 앱 생성 (최초 1회)
+databricks apps create mcp-excel \
   --description "Excel MCP Server for UC Volume structure inspection" \
   --profile <profile>
 
-# 3) 배포
-databricks apps deploy mcp-<prefix>-excel \
+# 3) user_api_scopes 등록 (app.yaml 에 적어도 적용 안 됨 — 앱 메타 설정)
+databricks apps update mcp-excel --json @app-update.json --profile <profile>
+
+# 4) 배포
+databricks apps deploy mcp-excel \
   --source-code-path /Workspace/Users/<your-email>/mcp-excel \
   --profile <profile>
 
-# 4) 앱 URL 확인
-databricks apps get mcp-<prefix>-excel --profile <profile> --output json | jq -r .url
+# 5) 앱 URL 확인
+databricks apps get mcp-excel --profile <profile> --output json | jq -r .url
 ```
+
+**Scope 변경 시**: 위 3번 명령 재실행 후 사용자가 앱 URL 에 한 번 접속해 OAuth consent 갱신 필요.
 
 ## 사용
 
@@ -75,14 +82,9 @@ claude mcp add --scope user --transport http mcp-excel \
 
 - 모든 MCP tool 호출은 **end user 본인의 UC 권한**으로 수행 (Volume 메타 조회·다운로드).
 - 앱 SP 에 Volume 권한 사전 부여 불필요.
-- `user_api_scopes` 는 **앱 메타 설정**이라 `app.yaml` 에 적어도 적용되지 않음. `app-update.json` 에 정의 후 다음 명령으로 등록:
-  ```bash
-  databricks apps update mcp-<prefix>-excel --json @app-update.json --profile <profile>
-  ```
-- 등록된 scopes:
+- 등록되는 `user_api_scopes` (`app-update.json`):
   - `files.files` — UC Volume read/write
   - `catalog.catalogs:read` — `/Volumes/<catalog>/...` 경로의 catalog lookup 통과 (필수, 없으면 catalog 단계에서 막힘)
-- scope 변경 시 사용자가 앱 URL 에 한 번 접속해 OAuth consent 갱신 필요.
 
 ## 파일 구조
 
@@ -99,7 +101,7 @@ claude mcp add --scope user --transport http mcp-excel \
 [Clients: Genie Code / Claude Code]
        │ HTTPS POST /mcp  (Databricks SSO or OAuth U2M token)
        ▼
-[Databricks App: mcp-<prefix>-excel]
+[Databricks App: mcp-excel]
   ├─ CORSMiddleware (preflight)
   ├─ UserTokenMiddleware (X-Forwarded-Access-Token → ContextVar)
   ├─ FastMCP streamable-http (stateless)
