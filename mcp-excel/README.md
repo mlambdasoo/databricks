@@ -52,7 +52,7 @@ databricks apps get mcp-excel --profile <profile> --output json | jq -r .url
 | `app.py` | FastMCP wrapper — 7개 tool |
 | `app.yaml` | 컨테이너 실행 명령 + 환경변수 |
 | `app-update.json` | 앱 메타 (`user_api_scopes`, `resources`) |
-| `requirements.txt` | 의존성 |
+| `requirements.txt` | `fastmcp`, `openpyxl`, `databricks-sdk`, `excel-mcp-server` |
 
 ## 참고
 
