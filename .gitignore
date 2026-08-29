@@ -8,6 +8,23 @@
 scripts/get_fevm_workspace_id.py
 scripts/zerobus_ingest.py
 
+# Credential notes / dumps (local only, never commit)
+.secrets-local/
+Databricks/Terraform/Internal_Serverless/claude_code_settings.txt
+apj_builderthon/zerobust_test_sp.txt
+
+# Databricks CLI bundle state (contains tfstate + vendored terraform binary)
+.databricks/
+
+# Python / Node build artifacts
+.venv/
+__pycache__/
+*.pyc
+node_modules/
+.pytest_cache/
+.next/
+mlruns/
+
 # Build artifacts with secrets
 fraud-detection-rtm/frontend/dist/
 
